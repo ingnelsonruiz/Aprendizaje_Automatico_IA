@@ -404,3 +404,194 @@ def muestra_de_prueba(n=8):
     muestra.insert(0, "id_paciente", [f"REAL-{i:03d}" for i in range(1, len(idx) + 1)])
     muestra.insert(1, "Diagnóstico", yte.loc[idx].map({0: "Benigno", 1: "Maligno"}).to_numpy())
     return muestra.reset_index(drop=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 8 · ENTRENAMIENTO EN VIVO
+# ═══════════════════════════════════════════════════════════════════════════
+# A diferencia del bloque 2, aquí NO se usa caché: el modelo se entrena de
+# verdad mientras el estudiante mira. `pasos_en_vivo` es un generador: entrega
+# un «fotograma» por paso, con lo que el modelo acaba de hacer contado en
+# lenguaje sencillo. La vista decide si lo reproduce solo o paso a paso.
+from sklearn.neural_network import MLPClassifier  # noqa: E402
+
+MODELOS_VIVO = {
+    "Regresión Logística": dict(
+        unidad="Época", pasos_def=40, pasos_max=150, usa_tasa=True, tasa_def=0.001,
+        idea="Busca una <b>línea recta</b> que separe benignos de malignos. Empieza con "
+             "pesos casi en cero y, en cada época, mide cuánto se equivoca (la "
+             "<b>pérdida</b>) y empuja los pesos en la dirección que reduce ese error: "
+             "eso es el <b>descenso de gradiente</b>.",
+        mirar="Mira cómo la línea amarilla gira y se desplaza hasta acomodarse, y cómo la "
+              "curva de pérdida baja rápido al principio y luego se aplana.",
+    ),
+    "Red neuronal (MLP)": dict(
+        unidad="Época", pasos_def=60, pasos_max=200, usa_tasa=True, tasa_def=0.01,
+        idea="Una red de <b>8 neuronas ocultas</b>. Cada neurona aprende una línea propia y "
+             "la red las combina, así que la frontera puede <b>curvarse</b>. Aprende igual "
+             "que la logística: época a época, con descenso de gradiente "
+             "(retropropagación).",
+        mirar="Al inicio la frontera es casi recta; con las épocas aparecen curvas. Si la "
+              "tasa de aprendizaje es muy alta, la pérdida «salta» en vez de bajar.",
+    ),
+    "Árbol de decisión": dict(
+        unidad="Profundidad", pasos_def=10, pasos_max=15, usa_tasa=False,
+        idea="Hace <b>preguntas de sí/no</b> sobre una variable a la vez "
+             "(«¿Componente 1 ≤ 0,8?»). Cada nivel de profundidad le permite hacer una "
+             "pregunta más en cada rama, y eso parte el plano en rectángulos.",
+        mirar="La frontera solo tiene cortes horizontales y verticales. Fíjate en la bitácora: "
+              "te dice qué pregunta nueva aprendió en cada nivel. Con mucha profundidad "
+              "el acierto de entrenamiento llega a 100 % pero el de validación no: memoriza.",
+    ),
+    "Random Forest": dict(
+        unidad="Árbol", pasos_def=30, pasos_max=100, usa_tasa=False,
+        idea="Entrena <b>muchos árboles</b>, cada uno con una muestra distinta de pacientes, "
+             "y los pone a <b>votar</b>. Un árbol solo es inestable; el promedio de muchos "
+             "es firme.",
+        mirar="Con 1 árbol la frontera es tosca; a medida que se suman árboles se suaviza. "
+              "La bitácora compara el acierto del árbol nuevo (solo) contra el del bosque "
+              "completo: el bosque casi siempre gana.",
+    ),
+    "SVM (RBF)": dict(
+        unidad="Iteración", pasos_def=12, pasos_max=12, usa_tasa=False,
+        idea="Busca la frontera que deja el <b>mayor margen</b> posible entre los dos grupos. "
+             "Solo le importan los pacientes cercanos a la frontera: los "
+             "<b>vectores de soporte</b>. El kernel RBF le permite curvarse.",
+        mirar="Con pocas iteraciones el optimizador no ha terminado y la frontera es mala. "
+              "Mira cómo baja el número de vectores de soporte cuando la solución se afina.",
+    ),
+}
+_ITER_SVM = [1, 2, 3, 5, 8, 12, 20, 35, 60, 120, 400, -1]
+
+
+def _desc_logistica(m, paso, perdida, previo):
+    w1, w2 = (float(v) for v in m.coef_[0])
+    b = float(m.intercept_[0])
+    txt = (f"Recorrió los pacientes de entrenamiento, calculó la pérdida "
+           f"(<b>{perdida:.4f}</b>) y ajustó sus pesos.<br>"
+           f"Ecuación actual: <code>z = {w1:+.3f}·C1 {w2:+.3f}·C2 {b:+.3f}</code>")
+    if previo is not None:
+        txt += (f"<br>Cambio en esta época: Δw1 = {w1 - previo[0]:+.4f}, "
+                f"Δw2 = {w2 - previo[1]:+.4f}, Δb = {b - previo[2]:+.4f}")
+    return txt, (w1, w2, b)
+
+
+def _desc_arbol(m, profundidad):
+    t = m.tree_
+    prof = np.zeros(t.node_count, dtype=int)
+    for n in range(t.node_count):
+        for h in (t.children_left[n], t.children_right[n]):
+            if h != -1:
+                prof[h] = prof[n] + 1
+    nuevas = [n for n in range(t.node_count)
+              if prof[n] == profundidad - 1 and t.children_left[n] != -1]
+    hojas = int((t.children_left == -1).sum())
+    if not nuevas:
+        return (f"No encontró ninguna pregunta nueva que mejore: todas las ramas ya son "
+                f"puras o tienen muy pocos pacientes. El árbol dejó de crecer "
+                f"(tiene {hojas} hojas).")
+    preguntas = "".join(
+        f"<li>¿Componente {int(t.feature[n]) + 1} ≤ {t.threshold[n]:.3f}? "
+        f"(decide sobre {int(t.n_node_samples[n])} pacientes)</li>" for n in nuevas[:6])
+    extra = f"<li>… y {len(nuevas) - 6} preguntas más</li>" if len(nuevas) > 6 else ""
+    return (f"Aprendió <b>{len(nuevas)} pregunta(s) nueva(s)</b> en el nivel {profundidad}:"
+            f"<ul>{preguntas}{extra}</ul>Ahora el plano está dividido en <b>{hojas} "
+            f"regiones</b> (hojas).")
+
+
+def pasos_en_vivo(nombre, n_pasos, tasa=0.03):
+    """Entrena `nombre` paso a paso y entrega un fotograma por paso.
+
+    Cada fotograma trae: superficie de probabilidad, métricas en entrenamiento y
+    validación, pérdida (si aplica), máscara de pacientes mal clasificados en el
+    entrenamiento y un relato en HTML de lo que el modelo hizo en ese paso.
+    """
+    g = proyeccion_2d()
+    Ztr, ytr, Zval, yval = g["Ztr"], g["ytr"], g["Zval"], g["yval"]
+    xs, ys, puntos, forma = _rejilla(Ztr)
+    clases = np.array([0, 1])
+
+    if nombre == "SVM (RBF)":
+        secuencia = _ITER_SVM[:n_pasos]
+    else:
+        secuencia = list(range(1, n_pasos + 1))
+
+    modelo, previo = None, None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for i, paso in enumerate(secuencia, start=1):
+            perdida = None
+            if nombre == "Regresión Logística":
+                if modelo is None:
+                    modelo = SGDClassifier(loss="log_loss", learning_rate="constant",
+                                           eta0=tasa, random_state=SEMILLA, penalty=None)
+                modelo.partial_fit(Ztr, ytr, classes=clases)
+                perdida = log_loss(ytr, np.clip(modelo.predict_proba(Ztr)[:, 1], 1e-9, 1 - 1e-9))
+                relato, previo = _desc_logistica(modelo, paso, perdida, previo)
+                etiqueta = f"Época {paso}"
+            elif nombre == "Red neuronal (MLP)":
+                if modelo is None:
+                    modelo = MLPClassifier(hidden_layer_sizes=(8,), learning_rate_init=tasa,
+                                           random_state=SEMILLA)
+                modelo.partial_fit(Ztr, ytr, classes=clases)
+                perdida = log_loss(ytr, np.clip(modelo.predict_proba(Ztr)[:, 1], 1e-9, 1 - 1e-9))
+                delta = "" if previo is None else f" (cambio {perdida - previo:+.4f})"
+                relato = (f"Pasó los datos hacia adelante por las 8 neuronas, midió el error "
+                          f"(pérdida <b>{perdida:.4f}</b>{delta}) y lo propagó hacia atrás "
+                          f"para corregir los {modelo.coefs_[0].size + modelo.coefs_[1].size} "
+                          f"pesos de la red.")
+                previo = perdida
+                etiqueta = f"Época {paso}"
+            elif nombre == "Árbol de decisión":
+                modelo = DecisionTreeClassifier(max_depth=paso, random_state=SEMILLA).fit(Ztr, ytr)
+                relato = _desc_arbol(modelo, paso)
+                etiqueta = f"Profundidad {paso}"
+            elif nombre == "Random Forest":
+                if modelo is None:
+                    modelo = RandomForestClassifier(n_estimators=1, warm_start=True,
+                                                    random_state=SEMILLA)
+                else:
+                    modelo.set_params(n_estimators=paso)
+                modelo.fit(Ztr, ytr)
+                solo = accuracy_score(yval, modelo.estimators_[-1].predict(Zval).astype(int))
+                bosque = accuracy_score(yval, modelo.predict(Zval))
+                relato = (f"Plantó el árbol #{paso} con una muestra al azar de pacientes. "
+                          f"Ese árbol <b>solo</b> acierta {solo*100:.1f} % en validación; "
+                          f"el <b>bosque completo votando</b> ({paso} árboles) acierta "
+                          f"{bosque*100:.1f} %.")
+                etiqueta = f"{paso} árbol(es)"
+            else:
+                modelo = SVC(kernel="rbf", max_iter=paso, random_state=SEMILLA).fit(Ztr, ytr)
+                n_sv = int(modelo.n_support_.sum())
+                tope = "sin límite (hasta converger)" if paso == -1 else f"máximo {paso}"
+                relato = (f"Se le permitió al optimizador {tope} iteración(es). La frontera "
+                          f"quedó apoyada en <b>{n_sv} vectores de soporte</b> "
+                          f"({n_sv/len(Ztr)*100:.0f} % de los pacientes de entrenamiento).")
+                if paso == -1:
+                    relato += " El optimizador convergió: esta es la solución final."
+                etiqueta = "Sin límite" if paso == -1 else f"{paso} iteraciones"
+
+            pred_tr = modelo.predict(Ztr)
+            pred_val = modelo.predict(Zval)
+            yield dict(
+                i=i, total=len(secuencia), etiqueta=etiqueta,
+                zz=_superficie(modelo, puntos, forma).astype(np.float32),
+                acc_tr=accuracy_score(ytr, pred_tr),
+                acc_val=accuracy_score(yval, pred_val),
+                rec_val=recall_score(yval, pred_val, zero_division=0),
+                perdida=perdida, errores=pred_tr != ytr, relato=relato,
+                modelo=modelo, xs=xs, ys=ys,
+            )
+
+
+def evaluar_en_prueba(modelo):
+    """Examen final del modelo entrenado en vivo sobre el conjunto de prueba (2D)."""
+    g = proyeccion_2d()
+    pred = modelo.predict(g["Zte"])
+    yte = g["yte"]
+    return dict(
+        acc=accuracy_score(yte, pred),
+        rec=recall_score(yte, pred, zero_division=0),
+        vp=int(((pred == 1) & (yte == 1)).sum()), fn=int(((pred == 0) & (yte == 1)).sum()),
+        vn=int(((pred == 0) & (yte == 0)).sum()), fp=int(((pred == 1) & (yte == 0)).sum()),
+    )

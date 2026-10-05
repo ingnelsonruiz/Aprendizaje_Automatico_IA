@@ -32,13 +32,14 @@ from ui import kpi                                            # noqa: E402
 import vista_dataset, vista_equipo, vista_exploracion            # noqa: E402
 import vista_historia, vista_laboratorio, vista_metricas         # noqa: E402
 import vista_modelos, vista_prediccion, vista_umbral             # noqa: E402
-import vista_universo3d                                          # noqa: E402
+import vista_universo3d, vista_en_vivo                           # noqa: E402
 
 # Orden de las pestañas: (etiqueta, módulo). Reordenar aquí reordena la app.
 PESTANAS = [
     ("📖 La historia", vista_historia),
     ("📘 El dataset", vista_dataset),
     ("🧪 Laboratorio", vista_laboratorio),
+    ("🎬 Entrenamiento en vivo", vista_en_vivo),
     ("🌌 Universo 3D", vista_universo3d),
     ("📊 Exploración", vista_exploracion),
     ("🤖 Modelos", vista_modelos),

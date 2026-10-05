@@ -29,6 +29,7 @@ Todos los archivos van en la raíz del repositorio.
 | `vista_historia.py` | Qué se busca predecir y variables clave |
 | `vista_dataset.py` | Origen de los datos y diccionario |
 | `vista_laboratorio.py` | Cómo aprende un modelo, paso a paso |
+| `vista_en_vivo.py` | Entrenamiento en tiempo real: elegir modelo, ver la frontera moverse y una bitácora paso a paso |
 | `vista_universo3d.py` | PCA en 3 dimensiones |
 | `vista_exploracion.py` | Distribuciones y correlaciones |
 | `vista_modelos.py` | Comparación de los tres algoritmos |
