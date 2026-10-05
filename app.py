@@ -119,7 +119,7 @@ with tab1:
 
     st.markdown("**Vista previa del dataset**")
     df_preview = X.copy()
-    df_preview['Diagnosis'] = y.values
+    df_preview["Diagnosis"] = y.values.flatten()
     st.dataframe(df_preview.head(10), use_container_width=True)
 
     st.markdown("**Estadísticas descriptivas**")
