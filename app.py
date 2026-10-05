@@ -1,340 +1,480 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
+import plotly.express as px
+import plotly.graph_objects as go
 from ucimlrepo import fetch_ucirepo
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score,
-    f1_score, confusion_matrix, classification_report
+    accuracy_score, precision_score, recall_score, f1_score,
+    confusion_matrix, roc_curve, auc
 )
 
-# ── CONFIGURACIÓN DE PÁGINA ───────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN Y ESTILO
+# ═════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Breast Cancer ML - Wisconsin",
-    page_icon="🔬",
-    layout="wide"
+    page_title="NEURAL DIAGNOSTICS · Breast Cancer ML",
+    page_icon="🧬",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-st.title("🔬 Machine Learning — Breast Cancer Wisconsin (Diagnostic)")
+CYAN, VIOLET, GREEN, PINK, AMBER = "#00D4FF", "#7B2FFF", "#00FF88", "#FF2D78", "#FFD700"
+COLOR_MODELO = {"Regresión Logística": CYAN, "Random Forest": VIOLET, "SVM (RBF)": GREEN}
+
 st.markdown("""
-**Dataset:** UCI Machine Learning Repository — ID 17  
-**Tarea:** Clasificación binaria — Maligno (M) / Benigno (B)  
-**Fuente:** [https://archive.ics.uci.edu/dataset/17](https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic)
-""")
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600&display=swap');
 
-st.divider()
+.stApp {
+    background:
+        radial-gradient(circle at 15% 0%, rgba(123,47,255,0.22) 0%, transparent 40%),
+        radial-gradient(circle at 90% 10%, rgba(0,212,255,0.18) 0%, transparent 45%),
+        #05070f;
+    font-family: 'Rajdhani', sans-serif;
+}
+html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
+#MainMenu, footer { visibility: hidden; }
+.block-container { padding-top: 1.5rem; max-width: 1400px; }
 
-# ── CARGA DE DATOS (con caché para no recargar) ───────────────────────────────
-@st.cache_data
+/* HERO */
+.hero {
+    position: relative; padding: 2.2rem 2.5rem; margin-bottom: 1.2rem;
+    border: 1px solid rgba(0,212,255,0.35); border-radius: 18px;
+    background: linear-gradient(135deg, rgba(13,27,42,0.9), rgba(10,14,26,0.6));
+    box-shadow: 0 0 40px rgba(0,212,255,0.12), inset 0 0 60px rgba(123,47,255,0.08);
+    overflow: hidden;
+}
+.hero::before {
+    content: ""; position: absolute; top: 0; left: -100%; width: 60%; height: 2px;
+    background: linear-gradient(90deg, transparent, #00D4FF, transparent);
+    animation: scan 3.5s linear infinite;
+}
+@keyframes scan { 0% { left: -60%; } 100% { left: 110%; } }
+.hero-tag {
+    display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.75rem;
+    letter-spacing: 3px; color: #00D4FF; border: 1px solid #00D4FF;
+    background: rgba(0,212,255,0.08); margin-bottom: 0.8rem;
+}
+.hero h1 {
+    font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 2.6rem; margin: 0.2rem 0;
+    background: linear-gradient(90deg, #00D4FF, #7B2FFF, #00FF88, #00D4FF);
+    background-size: 300% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; animation: flow 6s linear infinite;
+}
+@keyframes flow { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+.hero p { color: #8AAABB; font-size: 1.1rem; margin: 0; }
+
+/* KPI */
+.kpi {
+    position: relative; padding: 1.1rem 1rem; border-radius: 14px; text-align: center;
+    background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+    border: 1px solid var(--c); box-shadow: 0 0 22px color-mix(in srgb, var(--c) 25%, transparent);
+    transition: transform .25s, box-shadow .25s; backdrop-filter: blur(6px);
+}
+.kpi:hover { transform: translateY(-6px); box-shadow: 0 0 38px var(--c); }
+.kpi::before { content:""; position:absolute; top:0; left:15%; width:70%; height:3px; background:var(--c); border-radius:3px; }
+.kpi-v { font-family: 'Orbitron', sans-serif; font-size: 2rem; font-weight: 700; color: var(--c); }
+.kpi-l { color: #9fb7c9; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+
+/* TABS */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(0,212,255,0.25); }
+.stTabs [data-baseweb="tab"] {
+    height: 46px; padding: 0 18px; border-radius: 10px 10px 0 0;
+    background: rgba(255,255,255,0.03); color: #8AAABB; font-weight: 600; letter-spacing: 1px;
+}
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(180deg, rgba(0,212,255,0.2), rgba(0,212,255,0.02)) !important;
+    color: #00D4FF !important; border-bottom: 2px solid #00D4FF;
+}
+
+/* SECCIONES */
+.sec { font-family: 'Orbitron', sans-serif; font-size: 1.15rem; color: #fff; margin: 1.2rem 0 0.4rem; letter-spacing: 1px; }
+.sec span { color: #00D4FF; }
+.panel {
+    padding: 1rem 1.3rem; border-radius: 14px; border: 1px solid rgba(123,47,255,0.35);
+    background: rgba(13,27,42,0.55); color: #b9cddb; font-size: 1.05rem;
+}
+.veredicto-m, .veredicto-b {
+    padding: 1.2rem; border-radius: 14px; text-align: center;
+    font-family: 'Orbitron', sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: 3px;
+}
+.veredicto-m { color: #FF2D78; border: 1px solid #FF2D78; background: rgba(255,45,120,0.08); box-shadow: 0 0 30px rgba(255,45,120,0.35); }
+.veredicto-b { color: #00FF88; border: 1px solid #00FF88; background: rgba(0,255,136,0.07); box-shadow: 0 0 30px rgba(0,255,136,0.3); }
+.aviso { color: #6d8599; font-size: 0.85rem; text-align: center; margin-top: 2rem; }
+
+section[data-testid="stSidebar"] { background: rgba(8,12,24,0.95); border-right: 1px solid rgba(0,212,255,0.2); }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# UTILIDADES
+# ═════════════════════════════════════════════════════════════════════════════
+def mostrar(fig):
+    """Muestra un gráfico Plotly ajustado al ancho (compatible con versiones nuevas y viejas)."""
+    try:
+        st.plotly_chart(fig, width="stretch")
+    except TypeError:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def tabla(df):
+    try:
+        st.dataframe(df, width="stretch")
+    except TypeError:
+        st.dataframe(df, use_container_width=True)
+
+
+def estilo(fig, alto=420, titulo=None):
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(13,27,42,0.35)",
+        height=alto,
+        margin=dict(l=20, r=20, t=55 if titulo else 25, b=20),
+        font=dict(family="Rajdhani, sans-serif", size=14, color="#cfe3f0"),
+        title=dict(text=titulo, font=dict(family="Orbitron, sans-serif", size=15, color="#ffffff")) if titulo else None,
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+    )
+    fig.update_xaxes(gridcolor="rgba(0,212,255,0.08)", zerolinecolor="rgba(0,212,255,0.15)")
+    fig.update_yaxes(gridcolor="rgba(0,212,255,0.08)", zerolinecolor="rgba(0,212,255,0.15)")
+    return fig
+
+
+def kpi(valor, etiqueta, color):
+    return f'<div class="kpi" style="--c:{color}"><div class="kpi-v">{valor}</div><div class="kpi-l">{etiqueta}</div></div>'
+
+
+def seccion(texto):
+    st.markdown(f'<div class="sec"><span>▌</span> {texto}</div>', unsafe_allow_html=True)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# DATOS Y MODELOS
+# ═════════════════════════════════════════════════════════════════════════════
+@st.cache_data(show_spinner=False)
 def cargar_datos():
-    dataset = fetch_ucirepo(id=17)
-    X = dataset.data.features
-    y = dataset.data.targets
+    ds = fetch_ucirepo(id=17)
+    X = ds.data.features.copy()
+    y = ds.data.targets.iloc[:, 0].map({"M": 1, "B": 0}).astype(int)
     return X, y
 
-@st.cache_resource
-def entrenar_modelos(X, y):
-    y_encoded = (y['Diagnosis'] == 'M').astype(int)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
-    )
-    scaler = StandardScaler()
-    X_train_sc = scaler.fit_transform(X_train)
-    X_test_sc  = scaler.transform(X_test)
+
+@st.cache_resource(show_spinner=False)
+def entrenar():
+    X, y = cargar_datos()
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    sc = StandardScaler().fit(Xtr)
+    Xtr_s, Xte_s = sc.transform(Xtr), sc.transform(Xte)
 
     modelos = {
-        'Regresión Logística': LogisticRegression(random_state=42, max_iter=1000),
-        'Random Forest':       RandomForestClassifier(n_estimators=100, random_state=42),
-        'SVM (RBF)':           SVC(kernel='rbf', probability=True, random_state=42)
+        "Regresión Logística": LogisticRegression(random_state=42, max_iter=1000),
+        "Random Forest": RandomForestClassifier(n_estimators=200, random_state=42),
+        "SVM (RBF)": SVC(kernel="rbf", probability=True, random_state=42),
     }
+    res = {}
+    for nombre, m in modelos.items():
+        m.fit(Xtr_s, ytr)
+        pred = m.predict(Xte_s)
+        proba = m.predict_proba(Xte_s)[:, 1]
+        fpr, tpr, _ = roc_curve(yte, proba)
+        res[nombre] = dict(
+            modelo=m, pred=pred, proba=proba, fpr=fpr, tpr=tpr, auc=auc(fpr, tpr),
+            Accuracy=accuracy_score(yte, pred), Precision=precision_score(yte, pred),
+            Recall=recall_score(yte, pred), F1=f1_score(yte, pred),
+        )
+    return res, sc, yte.to_numpy(), len(Xtr), len(Xte)
 
-    resultados = {}
-    for nombre, modelo in modelos.items():
-        modelo.fit(X_train_sc, y_train)
-        y_pred = modelo.predict(X_test_sc)
-        resultados[nombre] = {
-            'Accuracy':  accuracy_score(y_test, y_pred),
-            'Precision': precision_score(y_test, y_pred),
-            'Recall':    recall_score(y_test, y_pred),
-            'F1-Score':  f1_score(y_test, y_pred),
-            'y_pred':    y_pred,
-            'modelo':    modelo
-        }
 
-    return modelos, resultados, scaler, X_train, X_test, y_train, y_test
-
-with st.spinner("Cargando dataset desde UCI..."):
+with st.spinner("⚡ Conectando con UCI y entrenando modelos..."):
     X, y = cargar_datos()
+    RES, SC, YTE, N_TR, N_TE = entrenar()
 
-with st.spinner("Entrenando modelos..."):
-    modelos, resultados, scaler, X_train, X_test, y_train, y_test = entrenar_modelos(X, y)
+etiqueta = y.map({0: "Benigno", 1: "Maligno"})
 
-st.success(f"✅ Dataset cargado: {X.shape[0]} instancias, {X.shape[1]} variables")
+# ═════════════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ═════════════════════════════════════════════════════════════════════════════
+with st.sidebar:
+    st.markdown("### 🧬 CENTRO DE CONTROL")
+    modelo_sel = st.selectbox("Modelo activo", list(RES.keys()), index=1)
+    st.markdown("---")
+    st.markdown(f"**Entrenamiento:** {N_TR} casos  \n**Prueba:** {N_TE} casos  \n**Variables:** {X.shape[1]}")
+    st.markdown("---")
+    st.caption("Dataset: UCI ML Repository · ID 17  \nDOI: 10.24432/C5DW2B")
 
-# ── TABS PRINCIPALES ──────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Exploración", "⚙️ Modelos", "📈 Evaluación", "🔮 Predicción", "ℹ️ Acerca de"
-])
+# ═════════════════════════════════════════════════════════════════════════════
+# HERO
+# ═════════════════════════════════════════════════════════════════════════════
+st.markdown("""
+<div class="hero">
+    <div class="hero-tag">MACHINE LEARNING · CLASIFICACIÓN BINARIA</div>
+    <h1>NEURAL DIAGNOSTICS</h1>
+    <p>Breast Cancer Wisconsin (Diagnostic) · Detección de tumores benignos y malignos con Inteligencia Artificial</p>
+</div>
+""", unsafe_allow_html=True)
 
-# ── TAB 1: EXPLORACIÓN ────────────────────────────────────────────────────────
-with tab1:
-    st.subheader("Exploración del Dataset")
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.markdown(kpi(f"{len(X)}", "Pacientes", CYAN), unsafe_allow_html=True)
+c2.markdown(kpi(f"{X.shape[1]}", "Dimensiones", VIOLET), unsafe_allow_html=True)
+c3.markdown(kpi(f"{RES[modelo_sel]['Accuracy']*100:.1f}%", "Accuracy", GREEN), unsafe_allow_html=True)
+c4.markdown(kpi(f"{RES[modelo_sel]['Recall']*100:.1f}%", "Recall maligno", PINK), unsafe_allow_html=True)
+c5.markdown(kpi(f"{RES[modelo_sel]['auc']:.3f}", "AUC · ROC", AMBER), unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total instancias", "569")
-    col2.metric("Variables predictoras", "30")
-    col3.metric("Clases", "2 (B / M)")
+st.write("")
+tabs = st.tabs(["🌌 Universo 3D", "📊 Exploración", "🤖 Modelos", "🎯 Umbral clínico", "🔮 Predicción", "ℹ️ Acerca de"])
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 1 · UNIVERSO 3D (PCA)
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[0]:
+    seccion("REDUCCIÓN DE DIMENSIONALIDAD · 30D → 3D")
+    st.markdown('<div class="panel">Cada punto es un paciente. PCA comprime las 30 variables en 3 componentes '
+                'principales: se puede <b>rotar, acercar y explorar</b> el espacio para ver cómo se separan '
+                'los tumores benignos de los malignos.</div>', unsafe_allow_html=True)
+
+    pca = PCA(n_components=3, random_state=42)
+    Z = pca.fit_transform(StandardScaler().fit_transform(X))
+    dfz = pd.DataFrame(Z, columns=["PC1", "PC2", "PC3"])
+    dfz["Diagnóstico"] = etiqueta.values
+
+    fig = px.scatter_3d(
+        dfz, x="PC1", y="PC2", z="PC3", color="Diagnóstico",
+        color_discrete_map={"Benigno": CYAN, "Maligno": PINK}, opacity=0.85,
+    )
+    fig.update_traces(marker=dict(size=4, line=dict(width=0.4, color="rgba(255,255,255,0.4)")))
+    fig.update_layout(scene=dict(
+        xaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(0,212,255,0.15)"),
+        yaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(0,212,255,0.15)"),
+        zaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(0,212,255,0.15)"),
+    ))
+    mostrar(estilo(fig, alto=620))
+
+    var = pca.explained_variance_ratio_
+    a, b, c = st.columns(3)
+    a.markdown(kpi(f"{var[0]*100:.1f}%", "Varianza PC1", CYAN), unsafe_allow_html=True)
+    b.markdown(kpi(f"{var[1]*100:.1f}%", "Varianza PC2", VIOLET), unsafe_allow_html=True)
+    c.markdown(kpi(f"{var.sum()*100:.1f}%", "Varianza total 3D", GREEN), unsafe_allow_html=True)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 2 · EXPLORACIÓN
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[1]:
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        seccion("DISTRIBUCIÓN DE CLASES")
+        cuenta = etiqueta.value_counts()
+        fig = go.Figure(go.Pie(
+            labels=cuenta.index, values=cuenta.values, hole=0.62,
+            marker=dict(colors=[CYAN, PINK], line=dict(color="#05070f", width=3)),
+            textinfo="label+percent", textfont=dict(size=15),
+        ))
+        fig.add_annotation(text=f"<b>{len(X)}</b><br>casos", showarrow=False, font=dict(size=22, color="#fff"))
+        mostrar(estilo(fig, alto=380))
+
+    with col2:
+        seccion("DISTRIBUCIÓN POR VARIABLE")
+        var_sel = st.selectbox("Variable", list(X.columns), index=0)
+        dfh = X[[var_sel]].copy()
+        dfh["Diagnóstico"] = etiqueta.values
+        fig = px.histogram(dfh, x=var_sel, color="Diagnóstico", barmode="overlay", nbins=40, opacity=0.7,
+                           color_discrete_map={"Benigno": CYAN, "Maligno": PINK})
+        mostrar(estilo(fig, alto=330))
+
+    seccion("MAPA DE CORRELACIÓN")
+    top = X.iloc[:, :12].corr()
+    fig = px.imshow(top, text_auto=".2f", aspect="auto",
+                    color_continuous_scale=[[0, PINK], [0.5, "#0D1B2A"], [1, CYAN]], zmin=-1, zmax=1)
+    mostrar(estilo(fig, alto=560))
+
+    seccion("VISTA PREVIA DE DATOS")
+    prev = X.copy()
+    prev.insert(0, "Diagnóstico", etiqueta.values)
+    tabla(prev.head(15))
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 3 · MODELOS
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[2]:
+    seccion("COMPARACIÓN DE MODELOS")
+    metricas = ["Accuracy", "Precision", "Recall", "F1"]
+    df_m = pd.DataFrame({n: {k: r[k] for k in metricas} for n, r in RES.items()}).T
 
     col1, col2 = st.columns(2)
-
     with col1:
-        st.markdown("**Distribución de clases**")
-        conteo = y['Diagnosis'].value_counts()
-        fig, ax = plt.subplots(figsize=(5, 4))
-        colores = ['#4C9BE8', '#E85C5C']
-        ax.bar(['Benigno (B)', 'Maligno (M)'], conteo.values, color=colores)
-        ax.set_ylabel('Cantidad')
-        ax.set_title('Distribución de Clases')
-        for i, v in enumerate(conteo.values):
-            ax.text(i, v + 3, f'{v}\n({v/len(y)*100:.1f}%)', ha='center', fontweight='bold')
-        st.pyplot(fig)
-        plt.close()
+        fig = go.Figure()
+        for nombre in df_m.index:
+            fig.add_trace(go.Bar(name=nombre, x=metricas, y=df_m.loc[nombre].values,
+                                 marker_color=COLOR_MODELO[nombre],
+                                 text=[f"{v:.3f}" for v in df_m.loc[nombre].values], textposition="outside"))
+        fig.update_layout(barmode="group", yaxis=dict(range=[0.85, 1.03]))
+        mostrar(estilo(fig, alto=420, titulo="MÉTRICAS POR MODELO"))
 
     with col2:
-        st.markdown("**Proporción de clases**")
-        fig, ax = plt.subplots(figsize=(5, 4))
-        ax.pie(conteo.values, labels=['Benigno (B)', 'Maligno (M)'],
-               autopct='%1.1f%%', colors=colores, startangle=90,
-               explode=(0, 0.05))
-        ax.set_title('Proporción')
-        st.pyplot(fig)
-        plt.close()
+        fig = go.Figure()
+        for nombre in df_m.index:
+            vals = df_m.loc[nombre].values.tolist()
+            fig.add_trace(go.Scatterpolar(r=vals + [vals[0]], theta=metricas + [metricas[0]], name=nombre,
+                                          fill="toself", opacity=0.45, line=dict(color=COLOR_MODELO[nombre], width=2)))
+        fig.update_layout(polar=dict(bgcolor="rgba(13,27,42,0.35)",
+                                     radialaxis=dict(range=[0.88, 1.0], gridcolor="rgba(0,212,255,0.2)"),
+                                     angularaxis=dict(gridcolor="rgba(0,212,255,0.2)")))
+        mostrar(estilo(fig, alto=420, titulo="RADAR DE DESEMPEÑO"))
 
-    st.markdown("**Vista previa del dataset**")
-    df_preview = X.copy()
-    df_preview["Diagnosis"] = y.values.flatten()
-    st.dataframe(df_preview.head(10), use_container_width=True)
-
-    st.markdown("**Estadísticas descriptivas**")
-    st.dataframe(X.describe().round(3), use_container_width=True)
-
-    st.markdown("**Matriz de correlación — Primeras 10 variables**")
-    fig, ax = plt.subplots(figsize=(12, 7))
-    sns.heatmap(X.iloc[:, :10].corr(), annot=True, fmt='.2f',
-                cmap='coolwarm', center=0, ax=ax)
-    ax.set_title('Correlación entre variables')
-    st.pyplot(fig)
-    plt.close()
-
-# ── TAB 2: MODELOS ────────────────────────────────────────────────────────────
-with tab2:
-    st.subheader("Modelos Entrenados")
-
-    st.markdown("""
-    Se entrenaron **3 modelos de clasificación** con los mismos datos (80% train / 20% test):
-
-    | Modelo | Descripción |
-    |---|---|
-    | **Regresión Logística** | Modelo lineal, simple e interpretable. Línea base. |
-    | **Random Forest** | Ensemble de árboles de decisión. Robusto y da importancia de variables. |
-    | **SVM (RBF)** | Máquina de soporte vectorial con kernel radial. Efectivo en espacios de alta dimensión. |
-    """)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**División de datos**")
-        st.info(f"🟦 Train: {X_train.shape[0]} muestras (80%)\n\n🟩 Test: {X_test.shape[0]} muestras (20%)")
-
-    with col2:
-        st.markdown("**Preprocesamiento**")
-        st.info("✅ StandardScaler aplicado\n\n✅ Stratify activado (mantiene proporción de clases)")
-
-    st.markdown("**Importancia de variables — Random Forest**")
-    rf_model = modelos['Random Forest']
-    importancias = pd.Series(rf_model.feature_importances_, index=X.columns)
-    importancias = importancias.sort_values(ascending=False).head(15)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    importancias.plot(kind='barh', color='seagreen', edgecolor='white', ax=ax)
-    ax.invert_yaxis()
-    ax.set_title('Top 15 Variables más Importantes — Random Forest')
-    ax.set_xlabel('Importancia relativa')
-    st.pyplot(fig)
-    plt.close()
-
-# ── TAB 3: EVALUACIÓN ─────────────────────────────────────────────────────────
-with tab3:
-    st.subheader("Evaluación de Modelos")
-
-    # Tabla de métricas
-    metricas_df = pd.DataFrame({
-        nombre: {
-            'Accuracy':  round(r['Accuracy'],  4),
-            'Precision': round(r['Precision'], 4),
-            'Recall':    round(r['Recall'],    4),
-            'F1-Score':  round(r['F1-Score'],  4)
-        }
-        for nombre, r in resultados.items()
-    }).T
-
-    st.markdown("**Comparación de métricas**")
-    st.dataframe(
-        metricas_df.style.highlight_max(axis=0, color='#90EE90'),
-        use_container_width=True
-    )
-    st.caption("🟢 Verde = mejor valor por columna | En salud: priorizar **Recall**")
-
-    # Gráfico comparativo
-    fig, ax = plt.subplots(figsize=(12, 5))
-    x = np.arange(len(metricas_df.columns))
-    width = 0.25
-    colores = ['#4C9BE8', '#2ECC71', '#E74C3C']
-    for i, (nombre, row) in enumerate(metricas_df.iterrows()):
-        bars = ax.bar(x + i * width, row.values, width, label=nombre,
-                      color=colores[i], alpha=0.85)
-        for bar, val in zip(bars, row.values):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.002,
-                    f'{val:.3f}', ha='center', va='bottom', fontsize=8)
-    ax.set_xticks(x + width)
-    ax.set_xticklabels(metricas_df.columns)
-    ax.set_ylim(0.85, 1.05)
-    ax.set_ylabel('Valor')
-    ax.set_title('Comparación de Modelos')
-    ax.legend()
-    ax.axhline(y=0.95, color='gray', linestyle='--', alpha=0.5, label='Umbral 95%')
-    st.pyplot(fig)
-    plt.close()
-
-    # Matrices de confusión
-    st.markdown("**Matrices de confusión**")
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
-    for ax, (nombre, r) in zip(axes, resultados.items()):
-        cm = confusion_matrix(y_test, r['y_pred'])
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                    xticklabels=['Benigno', 'Maligno'],
-                    yticklabels=['Benigno', 'Maligno'])
-        ax.set_title(nombre)
-        ax.set_xlabel('Predicción')
-        ax.set_ylabel('Real')
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
-
-    # Reporte del mejor modelo
-    mejor = metricas_df['Recall'].idxmax()
-    st.markdown(f"**Reporte detallado — Mejor modelo por Recall: `{mejor}`**")
-    reporte = classification_report(
-        y_test, resultados[mejor]['y_pred'],
-        target_names=['Benigno', 'Maligno']
-    )
-    st.code(reporte)
-
-# ── TAB 4: PREDICCIÓN INTERACTIVA ─────────────────────────────────────────────
-with tab4:
-    st.subheader("🔮 Predicción en tiempo real")
-    st.markdown("Ajusta los valores de las variables y el modelo predecirá si el tumor es **Benigno** o **Maligno**.")
-
-    modelo_sel = st.selectbox("Selecciona el modelo:", list(modelos.keys()))
-
-    st.markdown("**Variables del núcleo celular (valores medios)**")
-    col1, col2, col3 = st.columns(3)
-
-    vars_principales = X.columns[:10].tolist()
-    valores = {}
-
-    for i, col_name in enumerate(vars_principales):
-        col = [col1, col2, col3][i % 3]
-        min_v = float(X[col_name].min())
-        max_v = float(X[col_name].max())
-        mean_v = float(X[col_name].mean())
-        with col:
-            valores[col_name] = st.slider(
-                col_name, min_value=round(min_v, 4),
-                max_value=round(max_v, 4),
-                value=round(mean_v, 4),
-                step=round((max_v - min_v) / 100, 4)
-            )
-
-    # Completar las 30 variables con la media para las no mostradas
-    input_completo = []
-    for col_name in X.columns:
-        if col_name in valores:
-            input_completo.append(valores[col_name])
-        else:
-            input_completo.append(float(X[col_name].mean()))
-
-    input_array = np.array(input_completo).reshape(1, -1)
-    input_scaled = scaler.transform(input_array)
-
-    modelo_activo = modelos[modelo_sel]
-    prediccion = modelo_activo.predict(input_scaled)[0]
-    probabilidad = modelo_activo.predict_proba(input_scaled)[0]
-
-    st.divider()
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if prediccion == 1:
-            st.error("🔴 MALIGNO")
-        else:
-            st.success("🟢 BENIGNO")
-
-    with col2:
-        st.metric("Probabilidad Benigno", f"{probabilidad[0]*100:.1f}%")
-
+    col3, col4 = st.columns(2)
     with col3:
-        st.metric("Probabilidad Maligno", f"{probabilidad[1]*100:.1f}%")
+        fig = go.Figure()
+        for nombre, r in RES.items():
+            fig.add_trace(go.Scatter(x=r["fpr"], y=r["tpr"], mode="lines", name=f"{nombre} · AUC {r['auc']:.3f}",
+                                     line=dict(color=COLOR_MODELO[nombre], width=3)))
+        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Azar",
+                                 line=dict(color="#667788", dash="dash")))
+        fig.update_layout(xaxis_title="Falsos positivos (FPR)", yaxis_title="Recall (TPR)",
+                          legend=dict(x=0.45, y=0.08))
+        mostrar(estilo(fig, alto=420, titulo="CURVAS ROC"))
 
-    # Barra de probabilidad
-    fig, ax = plt.subplots(figsize=(8, 1.5))
-    ax.barh([''], [probabilidad[0]], color='#4C9BE8', label='Benigno')
-    ax.barh([''], [probabilidad[1]], left=[probabilidad[0]], color='#E85C5C', label='Maligno')
-    ax.set_xlim(0, 1)
-    ax.set_xlabel('Probabilidad')
-    ax.legend(loc='upper right')
-    ax.set_title('Distribución de probabilidad')
-    st.pyplot(fig)
-    plt.close()
+    with col4:
+        cm = confusion_matrix(YTE, RES[modelo_sel]["pred"])
+        fig = px.imshow(cm, text_auto=True, x=["Benigno", "Maligno"], y=["Benigno", "Maligno"],
+                        color_continuous_scale=[[0, "#0D1B2A"], [1, COLOR_MODELO[modelo_sel]]])
+        fig.update_traces(textfont=dict(size=30))
+        fig.update_layout(xaxis_title="Predicción", yaxis_title="Real", coloraxis_showscale=False)
+        mostrar(estilo(fig, alto=420, titulo=f"MATRIZ DE CONFUSIÓN · {modelo_sel.upper()}"))
 
-    st.caption("⚠️ Esta herramienta es solo para fines académicos. No reemplaza el diagnóstico médico profesional.")
+    seccion("IMPORTANCIA DE VARIABLES · RANDOM FOREST")
+    rf = RES["Random Forest"]["modelo"]
+    imp = pd.Series(rf.feature_importances_, index=X.columns).sort_values(ascending=True).tail(15)
+    fig = go.Figure(go.Bar(x=imp.values, y=imp.index, orientation="h",
+                           marker=dict(color=imp.values, colorscale=[[0, VIOLET], [1, CYAN]]),
+                           text=[f"{v:.3f}" for v in imp.values], textposition="outside"))
+    mostrar(estilo(fig, alto=520))
 
-# ── TAB 5: ACERCA DE ─────────────────────────────────────────────────────────
-with tab5:
-    st.subheader("Acerca del Proyecto")
+    seccion("TABLA DE RESULTADOS")
+    tabla(df_m.round(4))
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 4 · UMBRAL CLÍNICO
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[3]:
+    seccion("AJUSTE DEL UMBRAL DE DECISIÓN")
+    st.markdown('<div class="panel">En salud, un <b>falso negativo</b> (maligno clasificado como benigno) es el error más '
+                'grave. Baja el umbral para detectar más casos malignos: sube el Recall, pero aparecen más falsas '
+                'alarmas.</div>', unsafe_allow_html=True)
+
+    umbral = st.slider("Umbral de probabilidad para clasificar como MALIGNO", 0.05, 0.95, 0.50, 0.01)
+    proba = RES[modelo_sel]["proba"]
+    pred_u = (proba >= umbral).astype(int)
+    tp = int(((pred_u == 1) & (YTE == 1)).sum())
+    fn = int(((pred_u == 0) & (YTE == 1)).sum())
+    fp = int(((pred_u == 1) & (YTE == 0)).sum())
+    tn = int(((pred_u == 0) & (YTE == 0)).sum())
+    rec = tp / (tp + fn) if (tp + fn) else 0
+    pre = tp / (tp + fp) if (tp + fp) else 0
+
+    a, b, c, d = st.columns(4)
+    a.markdown(kpi(f"{rec*100:.1f}%", "Recall", GREEN), unsafe_allow_html=True)
+    b.markdown(kpi(f"{pre*100:.1f}%", "Precisión", CYAN), unsafe_allow_html=True)
+    c.markdown(kpi(f"{fn}", "Falsos negativos", PINK), unsafe_allow_html=True)
+    d.markdown(kpi(f"{fp}", "Falsas alarmas", AMBER), unsafe_allow_html=True)
+
+    ts = np.linspace(0.05, 0.95, 91)
+    recs, pres = [], []
+    for t in ts:
+        p_ = (proba >= t).astype(int)
+        tp_ = ((p_ == 1) & (YTE == 1)).sum()
+        fn_ = ((p_ == 0) & (YTE == 1)).sum()
+        fp_ = ((p_ == 1) & (YTE == 0)).sum()
+        recs.append(tp_ / (tp_ + fn_) if (tp_ + fn_) else 0)
+        pres.append(tp_ / (tp_ + fp_) if (tp_ + fp_) else 1)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=ts, y=recs, name="Recall", line=dict(color=GREEN, width=3)))
+    fig.add_trace(go.Scatter(x=ts, y=pres, name="Precisión", line=dict(color=CYAN, width=3)))
+    fig.add_vline(x=umbral, line=dict(color=AMBER, dash="dash", width=2))
+    fig.update_layout(xaxis_title="Umbral", yaxis_title="Valor", yaxis=dict(range=[0, 1.05]))
+    mostrar(estilo(fig, alto=400, titulo="RECALL vs PRECISIÓN SEGÚN EL UMBRAL"))
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 5 · PREDICCIÓN
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[4]:
+    seccion("SIMULADOR DE DIAGNÓSTICO EN TIEMPO REAL")
+    st.caption("Ajusta las 10 variables principales (valores medios). Las otras 20 se mantienen en su promedio.")
+
+    cols_pred = list(X.columns[:10])
+    valores = {}
+    grid = st.columns(3)
+    for i, nombre in enumerate(cols_pred):
+        mn, mx, md = float(X[nombre].min()), float(X[nombre].max()), float(X[nombre].mean())
+        paso = (mx - mn) / 200 if mx > mn else 0.01
+        with grid[i % 3]:
+            valores[nombre] = st.slider(nombre, mn, mx, md, paso)
+
+    fila = np.array([valores.get(c, float(X[c].mean())) for c in X.columns]).reshape(1, -1)
+    fila_df = pd.DataFrame(fila, columns=X.columns)
+    p_mal = float(RES[modelo_sel]["modelo"].predict_proba(SC.transform(fila_df))[0, 1])
+
+    st.write("")
+    izq, der = st.columns([1, 1])
+    with izq:
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number", value=p_mal * 100, number=dict(suffix="%", font=dict(size=46)),
+            title=dict(text="PROBABILIDAD DE MALIGNIDAD", font=dict(size=15)),
+            gauge=dict(
+                axis=dict(range=[0, 100], tickcolor="#667788"),
+                bar=dict(color=PINK if p_mal >= 0.5 else GREEN),
+                bgcolor="rgba(13,27,42,0.4)",
+                steps=[dict(range=[0, 50], color="rgba(0,255,136,0.12)"),
+                       dict(range=[50, 100], color="rgba(255,45,120,0.12)")],
+                threshold=dict(line=dict(color=AMBER, width=4), thickness=0.8, value=50),
+            ),
+        ))
+        mostrar(estilo(fig, alto=360))
+    with der:
+        st.write("")
+        st.write("")
+        if p_mal >= 0.5:
+            st.markdown('<div class="veredicto-m">⚠ MALIGNO</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="veredicto-b">✔ BENIGNO</div>', unsafe_allow_html=True)
+        st.write("")
+        st.markdown(f'<div class="panel">Modelo: <b>{modelo_sel}</b><br>'
+                    f'Benigno: <b>{(1-p_mal)*100:.1f}%</b> · Maligno: <b>{p_mal*100:.1f}%</b></div>',
+                    unsafe_allow_html=True)
+    st.caption("⚠ Herramienta académica. No reemplaza el diagnóstico médico profesional.")
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 6 · ACERCA DE
+# ═════════════════════════════════════════════════════════════════════════════
+with tabs[5]:
+    seccion("SOBRE EL DATASET")
     st.markdown("""
-    ### Breast Cancer Wisconsin (Diagnostic)
+<div class="panel">
+Las características se calculan a partir de imágenes digitalizadas de una <b>aspiración con aguja fina (FNA)</b>
+de una masa mamaria y describen los núcleos celulares: radio, textura, perímetro, área, suavidad, compacidad,
+concavidad, puntos cóncavos, simetría y dimensión fractal. Cada una con su <b>media</b>, <b>error estándar</b>
+y <b>peor valor</b>, para un total de 30 variables.
+</div>
+""", unsafe_allow_html=True)
 
-    **Descripción del dataset:**
-    Las características fueron calculadas a partir de imágenes digitalizadas de aspiración con aguja fina (FNA) de una masa mamaria.
-    Describen las características de los núcleos celulares presentes en la imagen.
+    seccion("MÉTRICAS CLAVE")
+    tabla(pd.DataFrame({
+        "Métrica": ["Accuracy", "Precision", "Recall", "F1-Score"],
+        "Fórmula": ["(VP + VN) / Total", "VP / (VP + FP)", "VP / (VP + FN)", "2·P·R / (P + R)"],
+        "Responde a": ["¿Qué % acertó en total?", "De los predichos malignos, ¿cuántos lo eran?",
+                       "De los malignos reales, ¿cuántos detectó?", "Balance entre Precision y Recall"],
+    }))
 
-    **Variables:** Para cada núcleo celular se calculan 10 características reales:
-    - Radio, Textura, Perímetro, Área, Suavidad
-    - Compacidad, Concavidad, Puntos cóncavos, Simetría, Dimensión fractal
+    seccion("CITA")
+    st.code("Wolberg, W., Mangasarian, O., Street, N., & Street, W. (1993). Breast Cancer Wisconsin (Diagnostic) "
+            "[Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5DW2B", language=None)
 
-    Cada una con **media**, **error estándar** y **peor valor** → 30 variables en total.
-
-    **Métricas clave:**
-
-    | Métrica | Fórmula | Descripción |
-    |---|---|---|
-    | Accuracy | (VP + VN) / Total | % total de aciertos |
-    | Precision | VP / (VP + FP) | De los predichos malignos, cuántos lo eran |
-    | Recall | VP / (VP + FN) | De los malignos reales, cuántos detectó |
-    | F1-Score | 2 × (P × R) / (P + R) | Balance entre Precision y Recall |
-
-    > En salud, el **Recall de la clase Maligna** es la métrica prioritaria porque minimiza los falsos negativos (malignos no detectados).
-
-    **Citación:**
-    > Wolberg, W., Mangasarian, O., Street, N., & Street, W. (1993).
-    > Breast Cancer Wisconsin (Diagnostic) [Dataset].
-    > UCI Machine Learning Repository. https://doi.org/10.24432/C5DW2B
-    """)
+st.markdown('<div class="aviso">NEURAL DIAGNOSTICS · Python · Scikit-learn · Plotly · Streamlit</div>',
+            unsafe_allow_html=True)
