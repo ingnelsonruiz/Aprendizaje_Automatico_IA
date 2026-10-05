@@ -16,58 +16,55 @@ streamlit run app.py
 
 ## Estructura
 
-```
-app.py                     Orquestador: configura la página y despacha las pestañas
-requirements.txt
+Todos los archivos van en la raíz del repositorio.
 
-nucleo/                    Lógica compartida (sin interfaz, salvo ui.py)
-  config.py                Paleta, metadatos del curso, diccionario de variables
-  estilos.py               Hoja de estilos CSS
-  ui.py                    Componentes: kpi, tarjeta, sección, panel, gráficos
-  datos.py                 Carga, traducción de columnas, entrenamiento, Contexto
-  entrenamiento.py         Experimentos didácticos del laboratorio (solo cálculo)
-
-vistas/                    Una pestaña por archivo, cada una con render(ctx)
-  historia.py              Qué se busca predecir y variables clave
-  dataset.py               Origen de los datos y diccionario
-  laboratorio.py           Cómo aprende un modelo, paso a paso
-  universo3d.py            PCA en 3 dimensiones
-  exploracion.py           Distribuciones y correlaciones
-  modelos.py               Comparación de los tres algoritmos
-  umbral.py                Ajuste del punto de corte clínico
-  prediccion.py            Simulador en tiempo real
-  metricas.py              Explicación de las métricas
-  equipo.py                Integrantes y alcance
-```
+| Archivo | Responsabilidad |
+|---|---|
+| `app.py` | Orquestador: configura la página y despacha las pestañas |
+| `config.py` | Paleta, metadatos del curso, integrantes, diccionario de variables |
+| `estilos.py` | Hoja de estilos CSS |
+| `ui.py` | Componentes: kpi, tarjeta, sección, panel, estilo de gráficos |
+| `datos.py` | Carga, traducción de columnas, entrenamiento, objeto `Contexto` |
+| `entrenamiento.py` | Experimentos didácticos del laboratorio (solo cálculo) |
+| `vista_historia.py` | Qué se busca predecir y variables clave |
+| `vista_dataset.py` | Origen de los datos y diccionario |
+| `vista_laboratorio.py` | Cómo aprende un modelo, paso a paso |
+| `vista_universo3d.py` | PCA en 3 dimensiones |
+| `vista_exploracion.py` | Distribuciones y correlaciones |
+| `vista_modelos.py` | Comparación de los tres algoritmos |
+| `vista_umbral.py` | Ajuste del punto de corte clínico |
+| `vista_prediccion.py` | Simulador en tiempo real |
+| `vista_metricas.py` | Explicación de las métricas |
+| `vista_equipo.py` | Integrantes y alcance |
 
 ## Cómo modificar sin romper nada
 
 | Quiero... | Toco solo... |
 |---|---|
-| Mejorar el laboratorio | `nucleo/entrenamiento.py` (cálculo) y `vistas/laboratorio.py` (dibujo) |
-| Cambiar colores o tipografía | `nucleo/config.py` y `nucleo/estilos.py` |
-| Agregar o quitar un modelo de producción | `nucleo/datos.py`, función `entrenar()` |
-| Cambiar textos del curso o integrantes | `nucleo/config.py` |
-| Agregar una pestaña | Crear `vistas/mi_vista.py` con `render(ctx)` y registrarla en `PESTANAS` de `app.py` |
+| Mejorar el laboratorio | `entrenamiento.py` (cálculo) y `vista_laboratorio.py` (dibujo) |
+| Cambiar colores o tipografía | `config.py` y `estilos.py` |
+| Agregar o quitar un modelo de producción | `datos.py`, función `entrenar()` |
+| Cambiar textos del curso o integrantes | `config.py` |
+| Agregar una pestaña | Crear `vista_mi_vista.py` con `render(ctx)` y registrarla en `PESTANAS` de `app.py` |
 
 ### Agregar un experimento al laboratorio
 
-1. En `nucleo/entrenamiento.py`, escribe una función que **solo calcule** y devuelva datos.
+1. En `entrenamiento.py`, escribe una función que **solo calcule** y devuelva datos.
    Decórala con `@st.cache_resource` si es costosa.
-2. En `vistas/laboratorio.py`, crea una función `_mi_experimento()` que la consuma
+2. En `vista_laboratorio.py`, crea una función `_mi_experimento()` que la consuma
    y dibuje, y llámala desde `render(ctx)`.
 
 Ningún otro archivo necesita cambiar.
 
 ### Agregar un algoritmo al comparador de fronteras
 
-En `nucleo/entrenamiento.py`: añade una entrada al diccionario `ALGORITMOS` con su
-control (`slider` o `select`) y su constructor en `_construir_modelo()`. La vista lo
-toma automáticamente.
+En `entrenamiento.py`: añade una entrada al diccionario `ALGORITMOS` con su control
+(`slider` o `select`) y su constructor en `_construir_modelo()`. La vista lo toma
+automáticamente.
 
 ## El objeto `ctx`
 
-Todas las vistas reciben un `Contexto` (definido en `nucleo/datos.py`) con:
+Todas las vistas reciben un `Contexto` (definido en `datos.py`) con:
 
 | Atributo | Contenido |
 |---|---|

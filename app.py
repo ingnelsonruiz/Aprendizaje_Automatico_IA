@@ -4,10 +4,13 @@ Propuesta del Proyecto ACA 1 · Grupo 3
 Aprendizaje Automático · 54ES2 · Segundo bloque · 26ES4
 
 Este archivo solo orquesta: configura la página, construye el contexto de datos
-y entrega cada pestaña a su módulo. Toda la lógica vive en `nucleo/` y `vistas/`.
+y entrega cada pestaña a su módulo.
+
+Módulos de apoyo: config, estilos, ui, datos, entrenamiento.
+Una vista por pestaña: vista_*.py, cada una con una función render(ctx).
 
 Para agregar una pestaña nueva:
-  1. Crea `vistas/mi_vista.py` con una función `render(ctx)`.
+  1. Crea `vista_mi_vista.py` con una función `render(ctx)`.
   2. Impórtala abajo y añade una entrada a la lista `PESTANAS`.
 """
 
@@ -20,28 +23,29 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from nucleo import estilos                                          # noqa: E402
-from nucleo.config import (AMBER, ASIGNATURA, CITA, CODIGOS, CYAN, EQUIPO,    # noqa: E402
+import estilos                                          # noqa: E402
+from config import (AMBER, ASIGNATURA, CITA, CODIGOS, CYAN, EQUIPO,    # noqa: E402
                            GREEN, GRUPO, PINK, PROGRAMA, PROYECTO,
                            SUBTITULO, VIOLET)
-from nucleo.datos import construir_contexto                          # noqa: E402
-from nucleo.ui import kpi                                            # noqa: E402
-from vistas import (dataset, equipo, exploracion, historia,          # noqa: E402
-                    laboratorio, metricas, modelos, prediccion,
-                    umbral, universo3d)
+from datos import construir_contexto                          # noqa: E402
+from ui import kpi                                            # noqa: E402
+import vista_dataset, vista_equipo, vista_exploracion            # noqa: E402
+import vista_historia, vista_laboratorio, vista_metricas         # noqa: E402
+import vista_modelos, vista_prediccion, vista_umbral             # noqa: E402
+import vista_universo3d                                          # noqa: E402
 
 # Orden de las pestañas: (etiqueta, módulo). Reordenar aquí reordena la app.
 PESTANAS = [
-    ("📖 La historia", historia),
-    ("📘 El dataset", dataset),
-    ("🧪 Laboratorio", laboratorio),
-    ("🌌 Universo 3D", universo3d),
-    ("📊 Exploración", exploracion),
-    ("🤖 Modelos", modelos),
-    ("🎯 Umbral clínico", umbral),
-    ("🔮 Predicción", prediccion),
-    ("📏 Métricas", metricas),
-    ("👥 Equipo", equipo),
+    ("📖 La historia", vista_historia),
+    ("📘 El dataset", vista_dataset),
+    ("🧪 Laboratorio", vista_laboratorio),
+    ("🌌 Universo 3D", vista_universo3d),
+    ("📊 Exploración", vista_exploracion),
+    ("🤖 Modelos", vista_modelos),
+    ("🎯 Umbral clínico", vista_umbral),
+    ("🔮 Predicción", vista_prediccion),
+    ("📏 Métricas", vista_metricas),
+    ("👥 Equipo", vista_equipo),
 ]
 
 
