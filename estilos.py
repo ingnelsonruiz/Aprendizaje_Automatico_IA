@@ -137,7 +137,35 @@ html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
 .veredicto-b { color: #00FF88; border: 1px solid #00FF88; background: rgba(0,255,136,0.07); box-shadow: 0 0 30px rgba(0,255,136,0.3); }
 .aviso { color: #6d8599; font-size: 0.85rem; text-align: center; margin-top: 2rem; }
 
-section[data-testid="stSidebar"] { background: rgba(8,12,24,0.95); border-right: 1px solid rgba(0,212,255,0.2); }
+section[data-testid="stSidebar"] {
+    background: rgba(8,12,24,0.95);
+    border-right: 1px solid rgba(0,212,255,0.2);
+}
+section[data-testid="stSidebar"] * {
+    color: #e0eaf2 !important;
+}
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] .stMarkdown strong,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] .stSelectbox label,
+section[data-testid="stSidebar"] small,
+section[data-testid="stSidebar"] span {
+    color: #e0eaf2 !important;
+}
+section[data-testid="stSidebar"] h3 {
+    color: #00D4FF !important;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    letter-spacing: 2px;
+}
+section[data-testid="stSidebar"] hr {
+    border-color: rgba(0,212,255,0.25) !important;
+}
+section[data-testid="stSidebar"] .stSelectbox > div > div {
+    background: rgba(13,27,42,0.8) !important;
+    border: 1px solid rgba(0,212,255,0.4) !important;
+    color: #e0eaf2 !important;
+}
 </style>
 """
 
