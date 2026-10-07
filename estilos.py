@@ -111,70 +111,53 @@ html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
 .step b { display: block; color: #00D4FF; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; letter-spacing: 1px; margin-bottom: 4px; }
 .step span { color: #b9cddb; font-size: 0.95rem; line-height: 1.25; }
 
-/* TABS — override agresivo del naranja de Streamlit */
-div[data-baseweb="tab-list"],
-.stTabs div[data-baseweb="tab-list"],
-[data-testid="stTabs"] div[data-baseweb="tab-list"] {
+/* TABS — override total del naranja */
+:root {
+    --default-color: #e0eaf2;
+    --secondary-background-color: #080c18 !important;
+}
+
+[data-baseweb="tab-list"] {
     background-color: #080c18 !important;
     background: #080c18 !important;
     border-bottom: 1px solid rgba(0,212,255,0.3) !important;
-    padding: 4px 6px 0 !important;
-    gap: 4px !important;
+    padding: 6px 6px 0 !important;
+    gap: 2px !important;
+    flex-wrap: wrap !important;       /* todas las pestañas visibles, sin scroll */
+    overflow: visible !important;
 }
 
-/* cada pestaña */
-div[data-baseweb="tab"],
-.stTabs div[data-baseweb="tab"] {
+[data-baseweb="tab"] {
     background: rgba(255,255,255,0.04) !important;
     color: #b0cfe0 !important;
     font-weight: 600 !important;
-    letter-spacing: 1px !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.5px !important;
     border-radius: 8px 8px 0 0 !important;
-    height: 44px !important;
-    padding: 0 14px !important;
+    height: 40px !important;
+    padding: 0 10px !important;
+    white-space: nowrap !important;
 }
-div[data-baseweb="tab"]:hover {
+[data-baseweb="tab"]:hover {
     background: rgba(0,212,255,0.1) !important;
     color: #e0f4ff !important;
 }
-div[data-baseweb="tab"][aria-selected="true"],
-.stTabs div[data-baseweb="tab"][aria-selected="true"] {
+[data-baseweb="tab"][aria-selected="true"] {
     background: linear-gradient(180deg, rgba(0,212,255,0.22), rgba(0,212,255,0.04)) !important;
     color: #00D4FF !important;
     border-bottom: 2px solid #00D4FF !important;
 }
+[data-baseweb="tab"] span,
+[data-baseweb="tab"] p { color: inherit !important; }
 
-/* texto dentro de la pestaña siempre visible */
-div[data-baseweb="tab"] p,
-div[data-baseweb="tab"] span {
-    color: inherit !important;
-}
-
-/* flecha de navegación (overflow) — siempre visible */
-div[data-baseweb="tab-list"] button,
-.stTabs div[data-baseweb="tab-list"] > button {
-    background: rgba(0,212,255,0.15) !important;
-    border: 1px solid rgba(0,212,255,0.45) !important;
-    color: #00D4FF !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    border-radius: 6px !important;
-    min-width: 32px !important;
-    min-height: 32px !important;
-    align-self: center !important;
-}
-div[data-baseweb="tab-list"] button:hover {
-    background: rgba(0,212,255,0.3) !important;
-}
-div[data-baseweb="tab-list"] button svg {
-    fill: #00D4FF !important;
-    stroke: #00D4FF !important;
+/* ocultar la flecha de overflow (ya no hace falta con wrap) */
+[data-baseweb="tab-list"] > button[aria-label],
+[data-baseweb="tab-list"] > button:not([data-baseweb="tab"]) {
+    display: none !important;
 }
 
 /* panel de contenido */
-div[data-baseweb="tab-panel"] {
-    background: transparent !important;
-}
+[data-baseweb="tab-panel"] { background: transparent !important; }
 
 /* SECCIONES */
 .sec { font-family: 'Orbitron', sans-serif; font-size: 1.1rem; color: #fff; margin: 1.3rem 0 0.5rem; letter-spacing: 1px; }
