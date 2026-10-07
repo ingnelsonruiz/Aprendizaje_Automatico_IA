@@ -111,32 +111,68 @@ html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
 .step b { display: block; color: #00D4FF; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; letter-spacing: 1px; margin-bottom: 4px; }
 .step span { color: #b9cddb; font-size: 0.95rem; line-height: 1.25; }
 
-/* TABS */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 6px;
-    border-bottom: 1px solid rgba(0,212,255,0.25);
-    flex-wrap: wrap;
-    background: rgba(5,7,15,0.95) !important;
-    padding: 6px 6px 0;
-    border-radius: 10px 10px 0 0;
+/* TABS — override agresivo del naranja de Streamlit */
+div[data-baseweb="tab-list"],
+.stTabs div[data-baseweb="tab-list"],
+[data-testid="stTabs"] div[data-baseweb="tab-list"] {
+    background-color: #080c18 !important;
+    background: #080c18 !important;
+    border-bottom: 1px solid rgba(0,212,255,0.3) !important;
+    padding: 4px 6px 0 !important;
+    gap: 4px !important;
 }
-.stTabs [data-baseweb="tab"] {
-    height: 46px; padding: 0 15px; border-radius: 10px 10px 0 0;
+
+/* cada pestaña */
+div[data-baseweb="tab"],
+.stTabs div[data-baseweb="tab"] {
     background: rgba(255,255,255,0.04) !important;
-    color: #9ab5c8 !important;
-    font-weight: 600; letter-spacing: 1px;
+    color: #b0cfe0 !important;
+    font-weight: 600 !important;
+    letter-spacing: 1px !important;
+    border-radius: 8px 8px 0 0 !important;
+    height: 44px !important;
+    padding: 0 14px !important;
 }
-.stTabs [data-baseweb="tab"]:hover {
-    background: rgba(0,212,255,0.08) !important;
-    color: #d0e8f2 !important;
+div[data-baseweb="tab"]:hover {
+    background: rgba(0,212,255,0.1) !important;
+    color: #e0f4ff !important;
 }
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(180deg, rgba(0,212,255,0.2), rgba(0,212,255,0.02)) !important;
+div[data-baseweb="tab"][aria-selected="true"],
+.stTabs div[data-baseweb="tab"][aria-selected="true"] {
+    background: linear-gradient(180deg, rgba(0,212,255,0.22), rgba(0,212,255,0.04)) !important;
     color: #00D4FF !important;
-    border-bottom: 2px solid #00D4FF;
+    border-bottom: 2px solid #00D4FF !important;
 }
-/* panel de contenido de la pestaña */
-.stTabs [data-baseweb="tab-panel"] {
+
+/* texto dentro de la pestaña siempre visible */
+div[data-baseweb="tab"] p,
+div[data-baseweb="tab"] span {
+    color: inherit !important;
+}
+
+/* flecha de navegación (overflow) — siempre visible */
+div[data-baseweb="tab-list"] button,
+.stTabs div[data-baseweb="tab-list"] > button {
+    background: rgba(0,212,255,0.15) !important;
+    border: 1px solid rgba(0,212,255,0.45) !important;
+    color: #00D4FF !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    border-radius: 6px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    align-self: center !important;
+}
+div[data-baseweb="tab-list"] button:hover {
+    background: rgba(0,212,255,0.3) !important;
+}
+div[data-baseweb="tab-list"] button svg {
+    fill: #00D4FF !important;
+    stroke: #00D4FF !important;
+}
+
+/* panel de contenido */
+div[data-baseweb="tab-panel"] {
     background: transparent !important;
 }
 
