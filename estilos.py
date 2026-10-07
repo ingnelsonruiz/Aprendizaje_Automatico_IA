@@ -112,14 +112,32 @@ html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
 .step span { color: #b9cddb; font-size: 0.95rem; line-height: 1.25; }
 
 /* TABS */
-.stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(0,212,255,0.25); flex-wrap: wrap; }
+.stTabs [data-baseweb="tab-list"] {
+    gap: 6px;
+    border-bottom: 1px solid rgba(0,212,255,0.25);
+    flex-wrap: wrap;
+    background: rgba(5,7,15,0.95) !important;
+    padding: 6px 6px 0;
+    border-radius: 10px 10px 0 0;
+}
 .stTabs [data-baseweb="tab"] {
     height: 46px; padding: 0 15px; border-radius: 10px 10px 0 0;
-    background: rgba(255,255,255,0.03); color: #8AAABB; font-weight: 600; letter-spacing: 1px;
+    background: rgba(255,255,255,0.04) !important;
+    color: #9ab5c8 !important;
+    font-weight: 600; letter-spacing: 1px;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    background: rgba(0,212,255,0.08) !important;
+    color: #d0e8f2 !important;
 }
 .stTabs [aria-selected="true"] {
     background: linear-gradient(180deg, rgba(0,212,255,0.2), rgba(0,212,255,0.02)) !important;
-    color: #00D4FF !important; border-bottom: 2px solid #00D4FF;
+    color: #00D4FF !important;
+    border-bottom: 2px solid #00D4FF;
+}
+/* panel de contenido de la pestaña */
+.stTabs [data-baseweb="tab-panel"] {
+    background: transparent !important;
 }
 
 /* SECCIONES */
