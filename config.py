@@ -1,30 +1,41 @@
-"""Constantes del proyecto: paleta, metadatos académicos y diccionario de variables.
+"""Constantes del proyecto: paleta, metadatos académicos, rutas y enlaces.
 
-Editar aquí cambia la identidad visual y los textos de todo el proyecto.
+Editar aquí cambia la identidad visual y los textos de toda la aplicación.
 """
 
-# ── Paleta ───────────────────────────────────────────────────────────────────
-CYAN = "#00D4FF"
-VIOLET = "#7B2FFF"
-GREEN = "#00FF88"
-PINK = "#FF2D78"
-AMBER = "#FFD700"
-NARANJA = "#FF6B35"
+from pathlib import Path
 
-COLOR_MODELO = {
-    "Regresión Logística": CYAN,
-    "Random Forest": VIOLET,
-    "SVM (RBF)": GREEN,
-}
+# ── Paleta «negatoscopio» ────────────────────────────────────────────────────
+# Caja de luz (fondo luminoso), azul de película radiográfica y el rojo de los
+# marcadores de plomo «R». Los nombres se conservan para no tocar las vistas.
+LUZ = "#EEF3F7"         # fondo: panel luminoso del negatoscopio
+TINTA = "#0F2A3D"       # texto principal: azul película oscuro
+TINTA_2 = "#4A6274"     # texto secundario
+PLOMO = "#C9D6DF"       # bordes y divisiones
+
+CYAN = "#1F5F8B"        # azul película (color principal)
+VIOLET = "#6A7FA3"      # pizarra
+GREEN = "#1D8F7A"       # tejido sano · NORMAL
+PINK = "#D93636"        # marcador R · NEUMONÍA
+AMBER = "#C98A12"       # umbral
+NARANJA = "#E0702A"
+
+COLOR_MODELO = {"CNN base": "#8FA3B3", "EffNet-B0": CYAN}
+COLOR_CLASE = {"NORMAL": GREEN, "NEUMONIA": PINK}
 
 # ── Metadatos académicos ─────────────────────────────────────────────────────
-PROYECTO = "Propuesta del Proyecto ACA 1"
-SUBTITULO = "Modelado con algoritmos clásicos de Machine Learning y despliegue interactivo en Streamlit"
+PROYECTO = "Proyecto ACA 2"
+TITULO_APP = "Radiografía inteligente"
+SUBTITULO = ("Detección de neumonía en radiografías de tórax con redes neuronales "
+             "convolucionales y despliegue interactivo en Streamlit")
 ASIGNATURA = "Aprendizaje Automático"
+DOCENTE = "Hamilton Rivera Flor"
 CODIGOS = ["54ES2", "SEGUNDO BLOQUE", "26ES4"]
 PROGRAMA = "Especialización en Inteligencia Artificial"
+INSTITUCION = "Corporación Unificada Nacional de Educación Superior (CUN)"
 GRUPO = "Grupo 3"
 
+# Verificar integrantes del ACA 2 antes de publicar
 EQUIPO = [
     ("Lina María Cabezas Alvear", CYAN),
     ("Nelson Javier Ruiz Lozano", VIOLET),
@@ -32,72 +43,23 @@ EQUIPO = [
     ("Eliana Andrea Medina Forero", PINK),
 ]
 
+# Completar al publicar (se muestran en la app y en el póster)
+URL_APP = ""
+URL_VIDEO = ""
+URL_REPO = "https://github.com/ingnelsonruiz/ACA2_Neumonia_CNN"
+
+# ── Rutas de artefactos (generados por el notebook ACA2_Neumonia_CNN.ipynb) ──
+RAIZ = Path(__file__).parent
+DIR_ARTEFACTOS = RAIZ / "artefactos"
+RUTA_METADATOS = DIR_ARTEFACTOS / "metadatos.json"
+RUTA_PESOS_CAM = DIR_ARTEFACTOS / "pesos_cam.npy"
+DIR_EJEMPLOS = DIR_ARTEFACTOS / "ejemplos"
+DIR_FIGURAS = DIR_ARTEFACTOS / "figuras"
+RUTA_DB = RAIZ / "chest_xray.duckdb"
+
 # ── Dataset ──────────────────────────────────────────────────────────────────
-UCI_ID = 17
-SEMILLA = 42
-TEST_SIZE = 0.2
-
-CITA = ("Wolberg, W., Mangasarian, O., Street, N., & Street, W. (1993). "
-        "Breast Cancer Wisconsin (Diagnostic) [Dataset]. UCI Machine Learning Repository. "
-        "https://doi.org/10.24432/C5DW2B")
-
-# (original, español, qué mide, aspecto que describe, por qué importa clínicamente)
-CARACTERISTICAS = [
-    ("radius", "Radio",
-     "Promedio de las distancias desde el centro del núcleo hasta los puntos de su borde.",
-     "Tamaño",
-     "Las células cancerosas pierden el control de su ciclo de división y sus núcleos crecen. "
-     "Un radio grande es una de las primeras señales de alarma."),
-    ("texture", "Textura",
-     "Desviación estándar de los tonos de gris dentro del núcleo en la imagen.",
-     "Aspecto interno",
-     "Un núcleo sano se ve parejo. Cuando el ADN se desorganiza, el interior del núcleo se ve "
-     "moteado y la variación de grises sube."),
-    ("perimeter", "Perímetro",
-     "Longitud total del contorno del núcleo.",
-     "Tamaño",
-     "Crece junto con el radio, pero crece todavía más rápido si el borde además es irregular."),
-    ("area", "Área",
-     "Superficie que ocupa el núcleo en la imagen.",
-     "Tamaño",
-     "Es la medida de tamaño más directa. Un núcleo maligno puede ocupar más del doble de "
-     "superficie que uno benigno."),
-    ("smoothness", "Suavidad",
-     "Variación local entre las longitudes del radio: qué tan liso es el borde.",
-     "Regularidad del borde",
-     "Un tumor benigno tiende a tener bordes lisos y redondeados; el maligno los tiene rugosos."),
-    ("compactness", "Compacidad",
-     "Perímetro² / área − 1,0. Indica qué tan compacta o alargada es la forma.",
-     "Forma",
-     "Un círculo perfecto es lo más compacto posible. Entre más se aleje de un círculo, "
-     "más sospechosa es la forma."),
-    ("concavity", "Concavidad",
-     "Severidad (profundidad) de los hundimientos del contorno.",
-     "Irregularidad del borde",
-     "Mide qué tan profundas son las «mordidas» del contorno. Los núcleos malignos suelen "
-     "tener hendiduras marcadas."),
-    ("concave_points", "Puntos cóncavos",
-     "Cantidad de porciones cóncavas (entrantes) del contorno.",
-     "Irregularidad del borde",
-     "Cuenta cuántas hendiduras hay. Es una de las variables que mejor separa benigno de "
-     "maligno en este dataset."),
-    ("symmetry", "Simetría",
-     "Qué tan simétrico es el núcleo.",
-     "Forma",
-     "El crecimiento descontrolado rompe la simetría del núcleo."),
-    ("fractal_dimension", "Dimensión fractal",
-     "Aproximación de la «línea costera» − 1: mide la complejidad del borde.",
-     "Complejidad del borde",
-     "Un borde muy enrevesado, como una costa recortada, tiene mayor dimensión fractal."),
-]
-
-BASE_ES = {orig: es for orig, es, _, _, _ in CARACTERISTICAS}
-POR_QUE = {es: porque for _, es, _, _, porque in CARACTERISTICAS}
-SUFIJO_ES = {"1": "media", "2": "error est.", "3": "peor"}
-
-NOMBRES_METRICAS = {
-    "Accuracy": "Exactitud",
-    "Precision": "Precisión",
-    "Recall": "Sensibilidad",
-    "F1": "F1",
-}
+CITA_DATASET = ("Kermany, D. S., Goldbaum, M., Cai, W., et al. (2018). Identifying medical diagnoses "
+                "and treatable diseases by image-based deep learning. Cell, 172(5), 1122–1131. "
+                "https://doi.org/10.1016/j.cell.2018.02.010")
+CITA_KAGGLE = ("Mooney, P. (2018). Chest X-Ray Images (Pneumonia) [Conjunto de datos]. Kaggle. "
+               "https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia")

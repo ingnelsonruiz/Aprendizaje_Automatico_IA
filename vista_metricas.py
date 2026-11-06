@@ -1,62 +1,74 @@
-"""Pestaña «Métricas»: los cuatro resultados posibles y las cuatro métricas."""
+"""Pestaña «Métricas»: evaluación en el conjunto de prueba."""
 
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
-from sklearn.metrics import confusion_matrix
 
-from config import AMBER, CYAN, GREEN, PINK, VIOLET
-from ui import panel, seccion, tarjeta
+from ayuda import ayuda, expansor_indicadores
+from config import AMBER, COLOR_MODELO, CYAN, GREEN, NARANJA, PINK, VIOLET
+from ui import estilo, kpi, mostrar, panel, seccion, tabla
 
-
-def _resultados(ctx):
-    seccion(f"LOS 4 RESULTADOS POSIBLES · {ctx.modelo_sel.upper()}")
-    vn, fp, fn, vp = confusion_matrix(ctx.y_prueba, ctx.activo["pred"]).ravel()
-    a, b, c, d = st.columns(4)
-    a.markdown(tarjeta("VERDADERO POSITIVO", "El modelo dijo <b>maligno</b> y realmente lo era. "
-                                             "Acierto clave.", GREEN, int(vp)), unsafe_allow_html=True)
-    b.markdown(tarjeta("VERDADERO NEGATIVO", "El modelo dijo <b>benigno</b> y realmente lo era. Acierto.",
-                       CYAN, int(vn)), unsafe_allow_html=True)
-    c.markdown(tarjeta("FALSO POSITIVO", "El modelo dijo <b>maligno</b> pero era benigno. Falsa alarma: "
-                                         "genera estrés y exámenes extra.", AMBER, int(fp)),
-               unsafe_allow_html=True)
-    d.markdown(tarjeta("FALSO NEGATIVO", "El modelo dijo <b>benigno</b> pero era maligno. El error más "
-                                         "grave: la paciente quedaría sin tratamiento.", PINK, int(fn)),
-               unsafe_allow_html=True)
-    return int(vn), int(fp), int(fn), int(vp)
-
-
-def _formulas(ctx, vn, fp, fn, vp):
-    seccion("LAS 4 MÉTRICAS, CON TUS PROPIOS RESULTADOS")
-    r = ctx.activo
-    a, b = st.columns(2)
-    a.markdown(tarjeta(f"EXACTITUD · {r['Accuracy']*100:.2f}%",
-                       f"¿Qué porcentaje acertó en total?<br><b>(VP + VN) / Total</b> = "
-                       f"({vp} + {vn}) / {vp+vn+fp+fn}<br>Engaña si las clases están desbalanceadas.",
-                       CYAN), unsafe_allow_html=True)
-    b.markdown(tarjeta(f"PRECISIÓN · {r['Precision']*100:.2f}%",
-                       f"De los que dijo «maligno», ¿cuántos lo eran?<br><b>VP / (VP + FP)</b> = "
-                       f"{vp} / ({vp} + {fp})<br>Mide cuántas falsas alarmas genera.", VIOLET),
-               unsafe_allow_html=True)
-    st.write("")
-    c, d = st.columns(2)
-    c.markdown(tarjeta(f"SENSIBILIDAD (RECALL) · {r['Recall']*100:.2f}%",
-                       f"De los malignos reales, ¿cuántos detectó?<br><b>VP / (VP + FN)</b> = "
-                       f"{vp} / ({vp} + {fn})<br>La métrica prioritaria en salud.", GREEN),
-               unsafe_allow_html=True)
-    d.markdown(tarjeta(f"F1 · {r['F1']*100:.2f}%",
-                       "Balance entre precisión y sensibilidad.<br><b>2 · P · R / (P + R)</b><br>"
-                       "Útil cuando importan ambas a la vez.", AMBER), unsafe_allow_html=True)
+COLUMNAS = {"accuracy": "Exactitud", "precision": "Precisión", "recall_sensibilidad": "Sensibilidad",
+            "especificidad": "Especificidad", "f1_neumonia": "F1 neumonía", "f1_macro": "F1 macro",
+            "roc_auc": "ROC-AUC", "vp": "VP", "fp": "FP", "vn": "VN", "fn": "FN"}
 
 
 def render(ctx):
-    vn, fp, fn, vp = _resultados(ctx)
-    _formulas(ctx, vn, fp, fn, vp)
-    seccion("UNA ANALOGÍA PARA NO CONFUNDIRSE")
-    panel("Imagina una <b>alarma de incendios</b>.<br>"
-          "• <b>Sensibilidad:</b> de todos los incendios que ocurrieron, ¿cuántos detectó la alarma? "
-          "Mira la realidad.<br>"
-          "• <b>Precisión:</b> de todas las veces que sonó, ¿cuántas había fuego de verdad? Mira lo que "
-          "el modelo predijo.<br>"
-          "• <b>Exactitud:</b> de todas las situaciones, ¿cuántas veces acertó, sonando con fuego y "
-          "callando sin él?<br><br>"
-          "En diagnóstico médico preferimos una alarma que a veces suene de más antes que una que deje "
-          "pasar un incendio real. Por eso la <b>sensibilidad</b> es la métrica más importante.")
+    r = ctx.principal
+    seccion(f"EFFICIENTNET-B0 · CONJUNTO DE PRUEBA · UMBRAL {ctx.meta['umbral']:.2f}")
+    c = st.columns(6)
+    for col, (v, nombre, color, clave) in zip(c, [
+        (r["accuracy"], "Exactitud", CYAN, "Exactitud (accuracy)"),
+        (r["recall_sensibilidad"], "Sensibilidad", PINK, "Sensibilidad (recall)"),
+        (r["especificidad"], "Especificidad", GREEN, "Especificidad"),
+        (r["precision"], "Precisión", VIOLET, "Precisión (VPP)"),
+        (r["f1_macro"], "F1 macro", AMBER, "F1"),
+        (r["roc_auc"], "ROC-AUC", CYAN, "ROC-AUC"),
+    ]):
+        col.markdown(kpi(f"{v:.3f}", nombre, color, ayuda(clave)), unsafe_allow_html=True)
+    expansor_indicadores(["Exactitud (accuracy)", "Sensibilidad (recall)", "Especificidad",
+                          "Precisión (VPP)", "F1", "ROC-AUC", "VP, FP, VN, FN"])
+
+    izq, der = st.columns(2)
+    with izq:
+        seccion("MATRIZ DE CONFUSIÓN")
+        cm = np.array(ctx.meta["matriz_confusion"])
+        pct = cm / cm.sum(axis=1, keepdims=True)
+        texto = [[f"<b>{cm[i, j]}</b><br>{pct[i, j]:.1%}<br>{e}" for j, e in enumerate(fila)]
+                 for i, fila in enumerate([["VN", "FP"], ["FN", "VP"]])]
+        fig = go.Figure(go.Heatmap(z=pct, x=["Pred. NORMAL", "Pred. NEUMONÍA"], y=["Real NORMAL", "Real NEUMONÍA"],
+                                   text=texto, texttemplate="%{text}", colorscale=[[0, "#F4F8FB"], [1, "#8DB4D3"]],
+                                   showscale=False, textfont=dict(size=16, color="#0F2A3D")))
+        fig.update_yaxes(autorange="reversed")
+        mostrar(estilo(fig, alto=400))
+        st.caption(f"{r['fn']} neumonías no detectadas y {r['fp']} falsas alarmas sobre "
+                   f"{r['vp'] + r['fn'] + r['vn'] + r['fp']} radiografías de prueba.")
+    with der:
+        seccion("CURVA ROC")
+        fig = go.Figure()
+        for nombre, roc in ctx.meta["roc"].items():
+            auc = ctx.principal["roc_auc"] if nombre == "EffNet-B0" else ctx.base["roc_auc"]
+            fig.add_trace(go.Scatter(x=roc["fpr"], y=roc["tpr"], name=f"{nombre} (AUC {auc:.3f})",
+                                     line=dict(color=COLOR_MODELO.get(nombre), width=3)))
+        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], name="Azar", line=dict(color="#9FB2C0", dash="dash")))
+        fig.update_layout(xaxis_title="1 − especificidad", yaxis_title="Sensibilidad",
+                          legend=dict(x=0.98, y=0.04, xanchor="right", yanchor="bottom"))
+        mostrar(estilo(fig, alto=400))
+
+    seccion("COMPARACIÓN DE MODELOS Y UMBRALES")
+    t = pd.DataFrame(ctx.meta["metricas_prueba"]).T.rename(columns=COLUMNAS)
+    t.index.name = "Modelo"
+    tabla(t.reset_index().round(4))
+
+    seccion("DESEMPEÑO POR SUBTIPO")
+    s = pd.DataFrame(ctx.meta["metricas_por_subtipo"])
+    fig = go.Figure(go.Bar(x=s["subtipo"].str.capitalize(), y=s["tasa_acierto"],
+                           marker_color=[{"normal": GREEN, "bacteria": PINK, "virus": NARANJA}.get(t, AMBER) for t in s["subtipo"]],
+                           text=[f"{v:.1%}<br>n = {n}" for v, n in zip(s["tasa_acierto"], s["imagenes"])],
+                           textposition="outside"))
+    fig.update_layout(yaxis=dict(range=[0, 1.12], title="Tasa de acierto"))
+    mostrar(estilo(fig, alto=360))
+    panel("La neumonía viral suele producir patrones intersticiales más sutiles que la consolidación lobar típica "
+          "de la bacteriana; si su tasa de acierto es menor, es coherente con la dificultad clínica de "
+          "distinguirla en la radiografía.")

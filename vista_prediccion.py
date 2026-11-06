@@ -1,60 +1,72 @@
-"""Pestaña «Predicción»: simulador de diagnóstico en tiempo real."""
+"""Pestaña «Predicción»: inferencia en tiempo real con mapa de activación."""
 
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import AMBER, GREEN, PINK
-from ui import estilo, mostrar, seccion
+from config import AMBER, CYAN, GREEN, PINK
+from modelo import cargar_imagen_gris, clase_predicha, parece_radiografia, predecir, superponer
+from ui import estilo, imagen, mostrar, panel, seccion
 
 
-def _controles(ctx):
-    """Dibuja un slider por cada variable «media» y devuelve los valores elegidos."""
-    valores = {}
-    grid = st.columns(3)
-    for i, nombre in enumerate(ctx.columnas_media()):
-        minimo = float(ctx.X[nombre].min())
-        maximo = float(ctx.X[nombre].max())
-        medio = float(ctx.X[nombre].mean())
-        paso = (maximo - minimo) / 200 if maximo > minimo else 0.01
-        with grid[i % 3]:
-            valores[nombre] = st.slider(nombre, minimo, maximo, medio, paso)
-    return valores
-
-
-def _velocimetro(p_mal):
+def _medidor(prob, umbral):
     fig = go.Figure(go.Indicator(
-        mode="gauge+number", value=p_mal * 100,
-        number=dict(suffix="%", font=dict(size=46)),
-        title=dict(text="PROBABILIDAD DE MALIGNIDAD", font=dict(size=15)),
-        gauge=dict(axis=dict(range=[0, 100], tickcolor="#667788"),
-                   bar=dict(color=PINK if p_mal >= 0.5 else GREEN),
-                   bgcolor="rgba(13,27,42,0.4)",
-                   steps=[dict(range=[0, 50], color="rgba(0,255,136,0.12)"),
-                          dict(range=[50, 100], color="rgba(255,45,120,0.12)")],
-                   threshold=dict(line=dict(color=AMBER, width=4), thickness=0.8, value=50))))
-    return estilo(fig, alto=360)
+        mode="gauge+number", value=prob * 100, number=dict(suffix=" %", font=dict(size=40)),
+        title=dict(text="Probabilidad de neumonía"),
+        gauge=dict(axis=dict(range=[0, 100]), bar=dict(color=PINK if prob >= umbral else GREEN),
+                   steps=[dict(range=[0, umbral * 100], color="rgba(29,143,122,0.14)"),
+                          dict(range=[umbral * 100, 100], color="rgba(217,54,54,0.14)")],
+                   threshold=dict(line=dict(color=AMBER, width=4), value=umbral * 100))))
+    return estilo(fig, alto=300)
 
 
 def render(ctx):
-    seccion("SIMULADOR DE DIAGNÓSTICO EN TIEMPO REAL")
-    st.caption("Ajusta las 10 características «media» del núcleo. Las otras 20 variables se mantienen "
-               "en su promedio.")
+    seccion("ANALIZAR UNA RADIOGRAFÍA")
+    fuente = st.radio("Origen de la imagen", ["Ejemplos del conjunto de prueba", "Subir radiografía"],
+                      horizontal=True)
+    if fuente == "Subir radiografía":
+        archivo = st.file_uploader("Radiografía de tórax AP (JPG o PNG)", type=["jpg", "jpeg", "png"])
+        if archivo is None:
+            st.info("Suba una imagen para analizarla, o use los ejemplos.")
+            return
+        es_rx, sat = parece_radiografia(archivo)
+        if not es_rx:
+            st.warning(f"La imagen tiene color (saturación media {sat:.0%}): no parece una radiografía. "
+                       "El resultado no tendrá validez.")
+        archivo.seek(0)
+        origen, etiqueta_real = archivo, None
+    else:
+        if not ctx.ejemplos:
+            st.info("No hay ejemplos disponibles en artefactos/ejemplos.")
+            return
+        nombre = st.selectbox("Radiografía", [e.name for e in ctx.ejemplos])
+        origen = next(e for e in ctx.ejemplos if e.name == nombre)
+        etiqueta_real = "NORMAL" if nombre.startswith("normal") else "NEUMONIA"
 
-    valores = _controles(ctx)
-    p_mal = ctx.probabilidad_maligno(valores)
+    img = cargar_imagen_gris(origen, ctx.meta["preprocesamiento"]["tam_cache"])
+    r = predecir(ctx, img)
+    clase = clase_predicha(r.prob_neumonia, ctx.umbral)
 
-    st.write("")
-    izq, der = st.columns(2)
+    izq, centro, der = st.columns([1, 1, 1])
     with izq:
-        mostrar(_velocimetro(p_mal))
+        imagen(img, "Radiografía (preprocesada)")
+    with centro:
+        opacidad = st.slider("Opacidad del mapa de calor", 0.0, 1.0, 0.5, 0.05)
+        imagen(superponer(img, r.cam, opacidad), "Mapa de activación (CAM) para «neumonía»")
     with der:
-        st.write("")
-        st.write("")
-        clase = "veredicto-m" if p_mal >= 0.5 else "veredicto-b"
-        texto = "⚠ MALIGNO" if p_mal >= 0.5 else "✔ BENIGNO"
-        st.markdown(f'<div class="{clase}">{texto}</div>', unsafe_allow_html=True)
-        st.write("")
-        st.markdown(f'<div class="panel">Modelo: <b>{ctx.modelo_sel}</b><br>'
-                    f'Benigno: <b>{(1-p_mal)*100:.1f}%</b> · Maligno: <b>{p_mal*100:.1f}%</b></div>',
+        mostrar(_medidor(r.prob_neumonia, ctx.umbral))
+        css = "veredicto-m" if clase == "NEUMONIA" else "veredicto-b"
+        st.markdown(f'<div class="{css}">{"NEUMONÍA" if clase == "NEUMONIA" else "NORMAL"}</div>',
                     unsafe_allow_html=True)
-    st.caption("⚠ Herramienta académica. No reemplaza el diagnóstico médico profesional.")
+        st.caption(f"Umbral activo {ctx.umbral:.2f} · inferencia {r.milisegundos:.0f} ms en CPU")
+        if etiqueta_real:
+            acierto = etiqueta_real == clase
+            st.markdown(f"**Etiqueta real:** {etiqueta_real} {'✅' if acierto else '❌'}")
+
+    margen = abs(r.prob_neumonia - ctx.umbral)
+    if margen < 0.10:
+        st.warning("La probabilidad está muy cerca del umbral: caso dudoso que debería priorizarse para lectura humana.")
+    panel("<b>Cómo leer el mapa:</b> las zonas en ámbar y rojo son las que más aumentaron la probabilidad de "
+          "neumonía. En un caso positivo se espera que coincidan con opacidades en los campos pulmonares. "
+          "Si el calor aparece en bordes, letras o fuera del tórax, desconfíe del resultado.<br><br>"
+          "⚠️ <b>Prototipo académico.</b> Entrenado con radiografías pediátricas (1 a 5 años) de un único hospital; "
+          "no es un dispositivo médico ni reemplaza la lectura de un radiólogo.")
